@@ -65,8 +65,8 @@ remove(allmaps, n40w115, n40w116, n41w115, n41w116, n42w115, n42w116)
 #bstate.outlines <- shapefile("./mapfiles/cb_2017_us_state_500k.shp")
 # so.reproj <- spTransform(state.outlines, crs(rubyvalley))
 
-# twostates <- subset(so.reproj, NAME %in% c("Utah", "Nevada"))
-# writeOGR(twostates, dsn = "./mapfiles", layer = "state outlines2", driver="ESRI Shapefile")
+#nevada <- subset(so.reproj, NAME %in% c("Nevada"))
+#writeOGR(nevada, dsn = "./mapfiles", layer = "nevada", driver="ESRI Shapefile")
 
 ##################################################################
 ##################################################################
@@ -75,23 +75,45 @@ remove(allmaps, n40w115, n40w116, n41w115, n41w116, n42w115, n42w116)
 ##################################################################
 ##################################################################
 
-packages <- c("plyr", "ggplot2", "raster", "rgdal", "rasterVis", "RColorBrewer")
+packages <- c("plyr", "ggplot2", "raster", "rgdal", "rasterVis", "wesanderson", "cowplot")
 lapply(packages, library, character.only = TRUE)
 
 rubyvalley <- raster("rubyvalley.img")
-twostates <- shapefile("state outlines.shp")
-twostates.f <- fortify(twostates)
+nevada <- shapefile("nevada.shp")
+sampling.locations <- read.csv("RelictDaceSampling.csv", header=TRUE)
 
 ###### Elevation is in meters ######
 
 # Use this guide to change labels and plot options:
 # http://www.sthda.com/english/wiki/ggplot2-title-main-axis-and-legend-titles
 
-gplot(rubyvalley, maxpixels = 5e5) + geom_tile(aes(fill = value)) +
+pal <- wes_palette("Darjeeling1", 4, type="discrete")
+ttl <- NULL
+rubyvalley.plot <- gplot(rubyvalley, maxpixels = 5e5) + geom_tile(aes(fill = value)) +
   facet_wrap(~ variable) + scale_fill_continuous(low = "black", high = "white") +
-  coord_quickmap(ylim=c(39,41.5), xlim=c(-116, -114)) + theme_minimal() +
-  geom_polygon(data=twostates.f, aes(x=long, y=lat, group=group),
-                               color="white", fill=NA)
+  coord_quickmap(ylim=c(39,41.1), xlim=c(-116, -114)) + theme_minimal(base_size = 12) +
+  geom_point(data=sampling.locations, aes(x=long, y=lat, shape=status, color=valley), size=2.5) +
+  xlab("Latitude") + ylab("Longitude") +
+  scale_color_manual(values=pal) +
+  theme(plot.title = element_blank(),
+        axis.title.x = element_text(face="bold",
+                                    margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(face="bold",
+                                    margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        legend.title = element_text(face="bold")) + 
+  labs(fill="Elevation (m)", shape="Sampling Status", color="Valley")
+
+# Code for inset map
+bounding <- as.data.frame(bbox(rubyvalley))
+inset <- ggplot() + theme_void() + 
+            geom_polygon(data=fortify(nevada), aes(x=long, y=lat, group=group),
+                                 color="black", fill="white") +
+         geom_rect(data=bounding, aes(xmin=min[1], xmax=max[1],
+                                           ymin=min[2], ymax=max[2]),
+                   color="black", fill=NA) + coord_map()
+          
+plot_grid(inset, rubyvalley.plot, ncol=2, rel_heights=c(1/4, 3/4))
+dev_off()
 
 # This saves a low resolution map for viewing only
 # Change the dpi to 1200 when you need publication quality
